@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import React from "react";
 import { useCreateUserWithEmailAndPassword } from "react-firebase-hooks/auth";
 import { auth } from "../../lib/firebase"; // Adjust path to your firebase config
-import "./globals.css";
+
 
 import { motion } from "framer-motion"; // Import framer-motion
 
@@ -53,7 +53,7 @@ const Home: React.FC = () => {
         <div className="w-full lg:grid lg:min-h-[600px] lg:grid-cols-2 xl:min-h-screen bg-gradient-to-r from-blue-200 to-purple-300">
             {/* Logo Section with Slide to Top Animation */}
             <motion.img
-                src="/logo1.jpg"
+                src="/logo1.png"
                 alt="Logo"
                 className="center w-auto h-full object-cover"
                 initial={{ scale: 0 }}
@@ -69,7 +69,7 @@ const Home: React.FC = () => {
             >
                 <div className="mx-auto grid w-[350px] gap-6">
                     <div className="grid gap-2 text-center">
-                        <h1 className="text-xl font-bold">Welcome to Virtual Store</h1>
+                        <h1 className="text-xl font-bold">Welcome to AI Engine</h1>
                         <h1 className="text-xl font-bold">Sign Up</h1>
                         <p className="text-balance text-muted-foreground">
                             Enter your email below to create an account

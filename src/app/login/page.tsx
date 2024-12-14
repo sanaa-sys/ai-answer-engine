@@ -58,7 +58,7 @@ const Login: React.FC = () => {
                     animate={{ scale: 1 }}
                     transition={{ duration: 1 }}
                 >
-                    <img src="/logo1.jpg" alt="Logo" className="center w-auto h-full object-cover" />
+                    <img src="/logo1.png" alt="Logo" className="center w-auto h-full object-cover" />
                 </motion.div>
 
                 <motion.div
@@ -69,7 +69,7 @@ const Login: React.FC = () => {
                 >
                     <div className="mx-auto grid w-[350px] gap-6">
                         <div className="grid gap-2 text-center">
-                            <h1 className="text-xl font-bold">Welcome to Virtual Store</h1>
+                            <h1 className="text-xl font-bold">Welcome to AI Engine</h1>
                             <h1 className="text-xl font-bold">Login</h1>
                             <p className="text-muted-foreground">
                                 Enter your email below to login to your account

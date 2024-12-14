@@ -1,21 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import { useAuthState } from "react-firebase-hooks/auth";
-import { auth } from "@/lib/firebase";
-import Link from 'next/link'
 
 type Message = {
-    role: "user" | "ai";
+    role: "user" | "system";
     content: string;
 };
 
 export default function Home() {
-    const [user] = useAuthState(auth);
- 
     const [message, setMessage] = useState("");
     const [messages, setMessages] = useState<Message[]>([
-        { role: "ai", content: "Hello! How can I help you today?" },
+        { role: "system", content: "Hello! How can I help you today?" },
     ]);
     const [isLoading, setIsLoading] = useState(false);
 
@@ -23,7 +18,7 @@ export default function Home() {
         if (!message.trim()) return;
 
         // Add user message to the conversation
-        const userMessage = { role: "user" as const, content: message };
+        const userMessage: Message = { role: "user", content: message };
         setMessages(prev => [...prev, userMessage]);
         setMessage("");
         setIsLoading(true);
@@ -34,45 +29,33 @@ export default function Home() {
                 headers: {
                     "Content-Type": "application/json",
                 },
-                body: JSON.stringify({ message }),
+                body: JSON.stringify({ messages }),
             });
 
-            // TODO: Handle the response from the chat API to display the AI response in the UI
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || "Something went wrong");
+            }
+
             const data = await response.json();
-            const aiMessage = { role: "ai" as const, content: data.response };
-            setMessages(prev => [...prev, aiMessage]);
+
+            if (data && data.response) {
+                const aiMessage: Message = { role: "system", content: data.response };
+                setMessages(prev => [...prev, aiMessage]);
+            } else {
+                throw new Error("Unexpected response format");
+            }
         } catch (error) {
             console.error("Error:", error);
-            const errorMessage = { role: "ai" as const, content: "Sorry, I encountered an error. Please try again." };
+            const errorMessage: Message = {
+                role: "ai",
+                content: "I'm sorry, but I encountered an error. Please try again or contact support if the problem persists.",
+            };
             setMessages(prev => [...prev, errorMessage]);
         } finally {
             setIsLoading(false);
         }
-
     };
-
-    if (!user) {
-        return (
-            <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100">
-                <h1 className="mb-4">Please sign up or log in to use the chatbot</h1>
-                <div className="space-x-4">
-                    <Link
-                        href="/signup"
-                        className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
-                    >
-                        Sign Up
-                    </Link>
-                    <Link
-                        href="/login"
-                        className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 transition-colors"
-                    >
-                        Log In
-                    </Link>
-                </div>
-            </div>
-        )
-       
-    }
 
     return (
         <div className="flex flex-col h-screen bg-gray-900">
@@ -89,13 +72,11 @@ export default function Home() {
                     {messages.map((msg, index) => (
                         <div
                             key={index}
-                            className={`flex gap-4 mb-4 ${msg.role === "ai"
-                                ? "justify-start"
-                                : "justify-end flex-row-reverse"
+                            className={`flex gap-4 mb-4 ${msg.role === "system" ? "justify-start" : "justify-end flex-row-reverse"
                                 }`}
                         >
                             <div
-                                className={`px-4 py-2 rounded-2xl max-w-[80%] ${msg.role === "ai"
+                                className={`px-4 py-2 rounded-2xl max-w-[80%] ${msg.role === "system"
                                     ? "bg-gray-800 border border-gray-700 text-gray-100"
                                     : "bg-cyan-600 text-white ml-auto"
                                     }`}
@@ -150,5 +131,5 @@ export default function Home() {
                 </div>
             </div>
         </div>
- )
+    );
 }
