@@ -1,57 +1,100 @@
+// TODO: Implement the code here to add rate limiting with Redis
+// Refer to the Next.js Docs: https://nextjs.org/docs/app/building-your-application/routing/middleware
+// Refer to Redis docs on Rate Limiting: https://upstash.com/docs/redis/sdks/ratelimit-ts/algorithms
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { Redis } from "@upstash/redis";
-import { Ratelimit } from "@upstash/ratelimit";
 
-const redis = new Redis({
-    url: process.env.UPSTASH_REDIS_REST_URL || (() => { throw new Error("UPSTASH_REDIS_REST_URL is not set") })(),
-    token: process.env.UPSTASH_REDIS_REST_TOKEN || (() => { throw new Error("UPSTASH_REDIS_REST_TOKEN is not set") })()
-});
+const RATE_LIMIT_REQUESTS = 50;
+const RATE_LIMIT_WINDOW = 60 * 60; // 1 hour
 
-const ratelimit = new Ratelimit({
-    redis,
-    limiter: Ratelimit.slidingWindow(10, "60s"),
-    analytics: true,
-    prefix: "@upstash/ratelimit",
-});
+async function redisRequest(endpoint: string, options: RequestInit = {}) {
+    const redisUrl = process.env.UPSTASH_REDIS_REST_URL;
+    const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN;
 
-export async function middleware(request: NextRequest) {
+    console.log('Redis config check:');
+    console.log('Redis URL exists:', !!redisUrl);
+    console.log('Redis URL starts with https:', redisUrl?.startsWith('https://'));
+    console.log('Redis token exists:', !!redisToken);
+
+    if (!redisUrl?.startsWith('https://') || !redisToken) {
+        console.warn('Redis credentials not found or invalid, rate limiting disabled');
+        return null;
+    }
+
     try {
-        const ip = request.headers.get("x-forwarded-for") ?? request.headers.get("cf-connecting-ip") ?? request.headers.get("x-real-ip") ?? "127.0.0.1";
+        const response = await fetch(`${redisUrl}${endpoint}`, {
+            ...options,
+            headers: {
+                ...options.headers,
+                Authorization: `Bearer ${redisToken}`,
+            },
+        });
 
-        if (request.nextUrl.pathname.startsWith("/api")) {
-            const { success, limit, reset, remaining } = await ratelimit.limit(ip);
-
-            const response = success
-                ? NextResponse.next()
-                : NextResponse.json(
-                    { error: "Too many requests" },
-                    { status: 429 }
-                );
-
-            response.headers.set("X-RateLimit-Limit", limit.toString());
-            response.headers.set("X-RateLimit-Remaining", remaining.toString());
-            response.headers.set("X-RateLimit-Reset", reset.toString());
-
-            return response;
+        if (!response.ok) {
+            throw new Error(`Redis request failed: ${response.statusText}`);
         }
 
+        return response.json();
+    } catch (error) {
+        console.error('Redis request error:', error);
+        return null;
+    }
+}
+
+export async function middleware(request: NextRequest) {
+    if (!request.nextUrl.pathname.startsWith('/api/chat')) {
         return NextResponse.next();
+    }
+
+    try {
+        const ip = request.headers.get('x-real-ip') ??
+            request.headers.get('x-forwarded-for')?.split(',')[0] ??
+            '127.0.0.1';
+
+        const ratelimitKey = `ratelimit:${ip}`;
+        const countData = await redisRequest(`/get/${ratelimitKey}`);
+
+        // If Redis is not available, allow the request
+        if (!countData) {
+            return NextResponse.next();
+        }
+
+        const currentCount = countData?.result ? parseInt(countData.result) : 0;
+
+        if (currentCount >= RATE_LIMIT_REQUESTS) {
+            return new NextResponse(
+                JSON.stringify({
+                    error: 'Rate limit exceeded',
+                    message: 'Too many requests, please try again later.'
+                }),
+                {
+                    status: 429,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Retry-After': RATE_LIMIT_WINDOW.toString()
+                    }
+                }
+            );
+        }
+
+        await redisRequest(`/incr/${ratelimitKey}`);
+        if (currentCount === 0) {
+            await redisRequest(`/expire/${ratelimitKey}/${RATE_LIMIT_WINDOW}`);
+        }
+
+        const response = NextResponse.next();
+        response.headers.set('X-RateLimit-Limit', RATE_LIMIT_REQUESTS.toString());
+        response.headers.set('X-RateLimit-Remaining', (RATE_LIMIT_REQUESTS - currentCount - 1).toString());
+
+        return response;
 
     } catch (error) {
-        console.error("Rate limiting error:", error);
-        return NextResponse.json(
-            { error: "Internal server error" },
-            { status: 500 }
-        );
+        console.error('Rate limiting error:', error);
+        // If rate limiting fails, still allow the request
+        return NextResponse.next();
     }
 }
 
 export const config = {
-    matcher: [
-        /*
-         * Match all request paths except static files and images
-         */
-        "/((?!_next/static|_next/image|favicon.ico).*)",
-    ],
+    matcher: ['/api/chat']
 };
