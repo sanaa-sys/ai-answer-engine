@@ -54,17 +54,17 @@ export default function Home() {
     if (!user) {
         return (
             <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100">
-                <h1 className="mb-4">Please sign up or log in to use the chatbot</h1>
+                <h1 className="mb-4">Please sign up or log in to use the application</h1>
                 <div className="space-x-4">
                     <Link
                         href="/signup"
-                        className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+                        className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-black-600 transition-colors"
                     >
                         Sign Up
                     </Link>
                     <Link
                         href="/login"
-                        className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 transition-colors"
+                        className="px-4 py-2 bg-green-500 text-white rounded hover:bg-black-600 transition-colors"
                     >
                         Log In
                     </Link>

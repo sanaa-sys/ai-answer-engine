@@ -1,3 +1,4 @@
+import { NextRequest, NextResponse } from 'next/server';
 import { Groq } from "groq-sdk";
 import axios from 'axios';
 import * as cheerio from 'cheerio';
@@ -5,6 +6,8 @@ import * as cheerio from 'cheerio';
 const groq = new Groq({
     apiKey: process.env.GROQ_API_KEY,
 });
+const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
+const GOOGLE_SEARCH_ENGINE_ID = process.env.GOOGLE_SEARCH_ENGINE_ID;
 
 const urlRegex = /(https?:\/\/[^\s]+)/g;
 
@@ -39,7 +42,27 @@ async function scrapeWithCheerio(url: string) {
     }
 }
 
-export async function POST(req: Request) {
+async function googleSearch(query: string) {
+    try {
+        const response = await axios.get(
+            `https://www.googleapis.com/customsearch/v1?q=${encodeURIComponent(query)}&key=${GOOGLE_API_KEY}&cx=${GOOGLE_SEARCH_ENGINE_ID}`
+        );
+
+        return response.data.items.slice(0, 5).map((item: any) => ({
+            title: item.title,
+            link: item.link,
+            snippet: item.snippet,
+        }));
+    } catch (error) {
+        console.error('Error fetching Google results:', error);
+        return {
+            error: 'Failed to fetch Google search results',
+            details: error instanceof Error ? error.message : 'Unknown error',
+        };
+    }
+}
+
+export async function POST(req: NextRequest) {
     try {
         const { messages } = await req.json()
 
@@ -56,15 +79,18 @@ export async function POST(req: Request) {
             scrapedData = await scrapeWithCheerio(urls[0])
         }
 
-        const context = scrapedData ?
-            `The following data was scraped from the URL: ${JSON.stringify(scrapedData)}` :
-            ''
+        const googleResults = await googleSearch(lastMessage.content)
+
+        const context = `
+            ${scrapedData ? `Scraped data from URL: ${JSON.stringify(scrapedData)}` : ''}
+            ${googleResults.length > 0 ? `Google search results: ${JSON.stringify(googleResults)}` : ''}
+        `.trim()
 
         const completion = await groq.chat.completions.create({
             messages: [
                 {
                     role: "system",
-                    content: "You are a helpful assistant that can analyze web pages. If a URL was scraped, use the scraped data to provide insights about the webpage. If no URL was scraped, respond normally to the user's query."
+                    content: "You are a helpful assistant that can analyze web pages and provide insights based on Google search results. If a URL was scraped or Google results are available, use this information to provide comprehensive insights. If neither is available, respond normally to the user's query."
                 },
                 ...messages.map(m => ({ role: m.role, content: m.content })),
                 {
@@ -77,15 +103,17 @@ export async function POST(req: Request) {
             max_tokens: 1024,
         });
 
-        return new Response(JSON.stringify({ response: completion.choices[0]?.message?.content || "No response generated." }), {
-            headers: { 'Content-Type': 'application/json' },
-        })
+        return NextResponse.json({
+            response: completion.choices[0]?.message?.content || "No response generated.",
+            scrapedData,
+            googleResults
+        });
     } catch (error) {
         console.error('Error generating response:', error)
-        return new Response(JSON.stringify({ error: 'Failed to generate response', details: error instanceof Error ? error.message : 'Unknown error' }), {
-            status: 500,
-            headers: { 'Content-Type': 'application/json' },
-        })
+        return NextResponse.json(
+            { error: 'Failed to generate response', details: error instanceof Error ? error.message : 'Unknown error' },
+            { status: 500 }
+        );
     }
 }
 

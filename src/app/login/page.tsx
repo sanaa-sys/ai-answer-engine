@@ -6,8 +6,6 @@ import { useSignInWithEmailAndPassword } from "react-firebase-hooks/auth";
 import { auth } from "../../lib/firebase";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
-import { toast, ToastContainer } from "react-toastify";
-import "react-toastify/dist/ReactToastify.css";
 
 import React from "react";
 
@@ -28,10 +26,10 @@ const Login: React.FC = () => {
         try {
             await signInWithEmailAndPassword(email, password);
             setEmail(email); 
-            toast.success("Logged in successfully!");
+            alert("Logged in successfully!");
             router.push("/home");
         } catch (error: any) {
-            toast.error(`Error: ${error.message}`);
+            alert(`Error: ${error.message}`);
         } finally {
             setLoading(false);
         }
@@ -47,8 +45,8 @@ const Login: React.FC = () => {
 
     return (
         <>
-            {/* ToastContainer moved to the root */}
-            <ToastContainer />
+       
+    
 
             <div className="w-full lg:grid lg:min-h-screen lg:grid-cols-2 bg-gradient-to-tr from-indigo-200 via-zinc-50 to-indigo-300 overflow-hidden">
                 {/* Image Section */}
